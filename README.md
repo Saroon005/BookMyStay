@@ -1,0 +1,1 @@
+BookMyStay (Version 1.0) is a modular, console-based Java project where a hotel admin can initialize and manage room inventory for three room types—Single, Double, and Suite—by setting available room counts and per-night prices, updating those values over time, and viewing the current inventory at any moment.
