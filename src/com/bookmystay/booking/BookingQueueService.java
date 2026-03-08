@@ -46,6 +46,10 @@ public class BookingQueueService {
 		return bookingQueue.poll();
 	}
 
+	public Reservation peekNextRequest() {
+		return bookingQueue.peek();
+	}
+
 	public int getQueueSize() {
 		return bookingQueue.size();
 	}

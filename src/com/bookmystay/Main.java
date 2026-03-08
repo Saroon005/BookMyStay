@@ -1,15 +1,16 @@
 /**
- * BookMyStay – Booking Request Queue
- * Booking requests are collected and processed in FIFO order.
+ * BookMyStay – Reservation Confirmation
+ * Booking requests are processed and unique room IDs are allocated.
  *
  * @author developer
- * @version 3.0
+ * @version 4.0
  */
 package com.bookmystay;
 
 import java.util.Scanner;
 
 import com.bookmystay.booking.BookingQueueService;
+import com.bookmystay.booking.BookingService;
 import com.bookmystay.inventory.InventoryService;
 import com.bookmystay.model.Reservation;
 import com.bookmystay.search.SearchService;
@@ -22,6 +23,7 @@ public class Main {
 		inventoryService.initializeInventory(5, 1000, 3, 2000, 0, 3000);
 		SearchService searchService = new SearchService(inventoryService);
 		BookingQueueService bookingQueueService = new BookingQueueService();
+		BookingService bookingService = new BookingService();
 		Scanner scanner = new Scanner(System.in);
 
 		boolean appRunning = true;
@@ -37,7 +39,7 @@ public class Main {
 				}
 				break;
 			case 2:
-				runGuestMenu(scanner, searchService, bookingQueueService);
+				runGuestMenu(scanner, searchService, bookingQueueService, bookingService, inventoryService);
 				appRunning = false;
 				break;
 			case 3:
@@ -70,7 +72,8 @@ public class Main {
 		return true;
 	}
 
-	private static void runGuestMenu(Scanner scanner, SearchService searchService, BookingQueueService bookingQueueService) {
+	private static void runGuestMenu(Scanner scanner, SearchService searchService, BookingQueueService bookingQueueService,
+			BookingService bookingService, InventoryService inventoryService) {
 		boolean running = true;
 		while (running) {
 			printGuestMenu();
@@ -90,7 +93,7 @@ public class Main {
 				bookingQueueService.displayQueue();
 				break;
 			case 5:
-				handleCheckout(bookingQueueService);
+				handleCheckout(bookingQueueService, bookingService, inventoryService);
 				break;
 			case 6:
 				running = false;
@@ -109,7 +112,7 @@ public class Main {
 		System.out.println("2. Search by room type");
 		System.out.println("3. Submit booking request");
 		System.out.println("4. Display booking queue");
-		System.out.println("5. Checkout (process all requests FIFO)");
+		System.out.println("5. Checkout (confirm and allocate rooms)");
 		System.out.println("6. Exit");
 	}
 
@@ -207,21 +210,37 @@ public class Main {
 		System.out.println("Current queue size: " + bookingQueueService.getQueueSize());
 	}
 
-	private static void handleCheckout(BookingQueueService bookingQueueService) {
+	private static void handleCheckout(BookingQueueService bookingQueueService, BookingService bookingService,
+			InventoryService inventoryService) {
 		System.out.println();
 		if (bookingQueueService.getQueueSize() == 0) {
 			System.out.println("No requests to checkout. Queue is empty.");
 			return;
 		}
 
-		System.out.println("Starting checkout... (FIFO order)");
-		while (true) {
-			Reservation next = bookingQueueService.processNextRequest();
+		System.out.println("Starting checkout... (confirming reservations in FIFO order)");
+		while (bookingQueueService.getQueueSize() > 0) {
+			Reservation next = bookingQueueService.peekNextRequest();
 			if (next == null) {
 				break;
 			}
 
-			System.out.println("Checking out: " + next);
+			Integer available = inventoryService.getRoomCount(next.getRoomType());
+			if (available == null || available <= 0) {
+				System.out.println("Cannot confirm next request. Not Available: " + next.getRoomType());
+				System.out.println("Checkout stopped to preserve FIFO order.");
+				break;
+			}
+
+			Reservation reservation = bookingQueueService.processNextRequest();
+			String roomId = bookingService.confirmReservation(reservation, inventoryService);
+			if (roomId == null) {
+				System.out.println("Confirmation failed for: " + reservation);
+				System.out.println("Checkout stopped.");
+				break;
+			}
+
+			System.out.println("Confirmed: " + reservation.getReservationId() + " -> Room ID: " + roomId);
 			System.out.println("Remaining in queue: " + bookingQueueService.getQueueSize());
 
 			if (bookingQueueService.getQueueSize() > 0) {
