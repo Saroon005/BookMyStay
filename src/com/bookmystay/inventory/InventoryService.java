@@ -67,6 +67,22 @@ public class InventoryService {
 		printRow(SUITE);
 	}
 
+	public Integer getRoomCount(String roomType) {
+		if (!isValidRoomType(roomType)) {
+			return null;
+		}
+		Integer count = roomCountsByType.get(roomType);
+		return (count == null) ? 0 : count;
+	}
+
+	public Double getRoomPrice(String roomType) {
+		if (!isValidRoomType(roomType)) {
+			return null;
+		}
+		Double price = roomPricesByType.get(roomType);
+		return (price == null) ? 0.0 : price;
+	}
+
 	private void printRow(String roomType) {
 		Integer count = roomCountsByType.get(roomType);
 		Double price = roomPricesByType.get(roomType);

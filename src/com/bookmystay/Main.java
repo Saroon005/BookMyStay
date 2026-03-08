@@ -1,24 +1,107 @@
 /**
- * BookMyStay – Room Inventory Management
- * Use Case: Hotel Admin initializes and manages room inventory.
+ * BookMyStay – Manager and Guest Console System
+ * Guests can search available rooms and view pricing, while managers can manage inventory.
  *
  * @author developer
- * @version 1.0
+ * @version 2.0
  */
 package com.bookmystay;
 
 import java.util.Scanner;
 
 import com.bookmystay.inventory.InventoryService;
+import com.bookmystay.search.SearchService;
 
 public class Main {
+	private static final String MANAGER_PASSWORD = "1234567890";
+
 	public static void main(String[] args) {
 		InventoryService inventoryService = new InventoryService();
+		inventoryService.initializeInventory(5, 1000, 3, 2000, 0, 3000);
+		SearchService searchService = new SearchService(inventoryService);
 		Scanner scanner = new Scanner(System.in);
 
+		boolean appRunning = true;
+		while (appRunning) {
+			printRoleMenu();
+			int roleChoice = readInt(scanner, "Select an option: ");
+
+			switch (roleChoice) {
+			case 1:
+				if (authenticateManager(scanner)) {
+					runManagerMenu(scanner, inventoryService);
+					appRunning = false;
+				}
+				break;
+			case 2:
+				runGuestMenu(scanner, searchService);
+				appRunning = false;
+				break;
+			case 3:
+				appRunning = false;
+				System.out.println("Exiting BookMyStay. Goodbye!");
+				break;
+			default:
+				System.out.println("Invalid option. Please try again.");
+			}
+		}
+
+		scanner.close();
+	}
+
+	private static void printRoleMenu() {
+		System.out.println();
+		System.out.println("=== BookMyStay - Select Role ===");
+		System.out.println("1. Manager");
+		System.out.println("2. Guest");
+		System.out.println("3. Exit");
+	}
+
+	private static boolean authenticateManager(Scanner scanner) {
+		System.out.print("Enter manager password: ");
+		String password = scanner.nextLine();
+		if (!MANAGER_PASSWORD.equals(password)) {
+			System.out.println("Incorrect password. Access denied.");
+			return false;
+		}
+		return true;
+	}
+
+	private static void runGuestMenu(Scanner scanner, SearchService searchService) {
 		boolean running = true;
 		while (running) {
-			printMenu();
+			printGuestMenu();
+			int choice = readInt(scanner, "Select an option: ");
+
+			switch (choice) {
+			case 1:
+				searchService.displayAllRooms();
+				break;
+			case 2:
+				handleSearchByRoomType(scanner, searchService);
+				break;
+			case 3:
+				running = false;
+				System.out.println("Exiting BookMyStay. Goodbye!");
+				break;
+			default:
+				System.out.println("Invalid option. Please try again.");
+			}
+		}
+	}
+
+	private static void printGuestMenu() {
+		System.out.println();
+		System.out.println("=== BookMyStay - Guest Room Search ===");
+		System.out.println("1. View all room types");
+		System.out.println("2. Search by room type");
+		System.out.println("3. Exit");
+	}
+
+	private static void runManagerMenu(Scanner scanner, InventoryService inventoryService) {
+		boolean running = true;
+		while (running) {
+			printManagerMenu();
 			int choice = readInt(scanner, "Select an option: ");
 
 			switch (choice) {
@@ -42,13 +125,11 @@ public class Main {
 				System.out.println("Invalid option. Please try again.");
 			}
 		}
-
-		scanner.close();
 	}
 
-	private static void printMenu() {
+	private static void printManagerMenu() {
 		System.out.println();
-		System.out.println("=== BookMyStay - Admin Inventory Menu ===");
+		System.out.println("=== BookMyStay - Manager Inventory Menu ===");
 		System.out.println("1. Initialize inventory");
 		System.out.println("2. Update room counts");
 		System.out.println("3. Update prices");
@@ -93,6 +174,12 @@ public class Main {
 		if (updated) {
 			System.out.println("Price updated.");
 		}
+	}
+
+	private static void handleSearchByRoomType(Scanner scanner, SearchService searchService) {
+		System.out.println();
+		String roomType = readRoomType(scanner);
+		searchService.displayRoom(roomType);
 	}
 
 	private static String readRoomType(Scanner scanner) {
