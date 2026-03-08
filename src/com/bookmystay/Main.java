@@ -3,17 +3,23 @@
  * Booking requests are processed and unique room IDs are allocated.
  *
  * @author developer
- * @version 4.0
+ * @version 5.0
  */
 package com.bookmystay;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 
 import com.bookmystay.booking.BookingQueueService;
 import com.bookmystay.booking.BookingService;
 import com.bookmystay.inventory.InventoryService;
 import com.bookmystay.model.Reservation;
 import com.bookmystay.search.SearchService;
+import com.bookmystay.service.Service;
+import com.bookmystay.service.ServiceManager;
 
 public class Main {
 	private static final String MANAGER_PASSWORD = "1234567890";
@@ -24,6 +30,10 @@ public class Main {
 		SearchService searchService = new SearchService(inventoryService);
 		BookingQueueService bookingQueueService = new BookingQueueService();
 		BookingService bookingService = new BookingService();
+		ServiceManager serviceManager = new ServiceManager();
+		Set<String> confirmedReservationIds = new HashSet<>();
+		Map<String, String> reservationIdToRoomId = new HashMap<>();
+		Map<String, String> roomIdToReservationId = new HashMap<>();
 		Scanner scanner = new Scanner(System.in);
 
 		boolean appRunning = true;
@@ -39,7 +49,8 @@ public class Main {
 				}
 				break;
 			case 2:
-				runGuestMenu(scanner, searchService, bookingQueueService, bookingService, inventoryService);
+				runGuestMenu(scanner, searchService, bookingQueueService, bookingService, inventoryService, serviceManager,
+						confirmedReservationIds, reservationIdToRoomId, roomIdToReservationId);
 				appRunning = false;
 				break;
 			case 3:
@@ -73,7 +84,9 @@ public class Main {
 	}
 
 	private static void runGuestMenu(Scanner scanner, SearchService searchService, BookingQueueService bookingQueueService,
-			BookingService bookingService, InventoryService inventoryService) {
+			BookingService bookingService, InventoryService inventoryService, ServiceManager serviceManager,
+			Set<String> confirmedReservationIds, Map<String, String> reservationIdToRoomId,
+			Map<String, String> roomIdToReservationId) {
 		boolean running = true;
 		while (running) {
 			printGuestMenu();
@@ -93,9 +106,16 @@ public class Main {
 				bookingQueueService.displayQueue();
 				break;
 			case 5:
-				handleCheckout(bookingQueueService, bookingService, inventoryService);
+				handleCheckout(bookingQueueService, bookingService, inventoryService, confirmedReservationIds,
+						reservationIdToRoomId, roomIdToReservationId);
 				break;
 			case 6:
+				handleAttachService(scanner, serviceManager, confirmedReservationIds, roomIdToReservationId);
+				break;
+			case 7:
+				handleViewServices(scanner, serviceManager, confirmedReservationIds, roomIdToReservationId);
+				break;
+			case 8:
 				running = false;
 				System.out.println("Exiting BookMyStay. Goodbye!");
 				break;
@@ -113,7 +133,9 @@ public class Main {
 		System.out.println("3. Submit booking request");
 		System.out.println("4. Display booking queue");
 		System.out.println("5. Checkout (confirm and allocate rooms)");
-		System.out.println("6. Exit");
+		System.out.println("6. Attach service to reservation");
+		System.out.println("7. View services for reservation");
+		System.out.println("8. Exit");
 	}
 
 	private static void runManagerMenu(Scanner scanner, InventoryService inventoryService) {
@@ -211,7 +233,8 @@ public class Main {
 	}
 
 	private static void handleCheckout(BookingQueueService bookingQueueService, BookingService bookingService,
-			InventoryService inventoryService) {
+			InventoryService inventoryService, Set<String> confirmedReservationIds, Map<String, String> reservationIdToRoomId,
+			Map<String, String> roomIdToReservationId) {
 		System.out.println();
 		if (bookingQueueService.getQueueSize() == 0) {
 			System.out.println("No requests to checkout. Queue is empty.");
@@ -240,6 +263,10 @@ public class Main {
 				break;
 			}
 
+			confirmedReservationIds.add(reservation.getReservationId());
+			reservationIdToRoomId.put(reservation.getReservationId(), roomId);
+			roomIdToReservationId.put(roomId, reservation.getReservationId());
+
 			System.out.println("Confirmed: " + reservation.getReservationId() + " -> Room ID: " + roomId);
 			System.out.println("Remaining in queue: " + bookingQueueService.getQueueSize());
 
@@ -255,6 +282,62 @@ public class Main {
 		}
 
 		System.out.println("Checkout complete.");
+	}
+
+	private static void handleAttachService(Scanner scanner, ServiceManager serviceManager,
+			Set<String> confirmedReservationIds, Map<String, String> roomIdToReservationId) {
+		System.out.println();
+		String inputId = readNonEmptyString(scanner, "Enter confirmed reservationId or room ID: ");
+		String reservationId = resolveReservationId(inputId, confirmedReservationIds, roomIdToReservationId);
+		if (reservationId == null) {
+			System.out.println("Reservation not found or not confirmed yet: " + inputId);
+			System.out.println("Confirm a booking during checkout before attaching services.");
+			return;
+		}
+
+		Service service = readService(scanner);
+		serviceManager.addService(reservationId, service);
+		System.out.println("Service added to " + reservationId + ": " + service.getName());
+	}
+
+	private static void handleViewServices(Scanner scanner, ServiceManager serviceManager,
+			Set<String> confirmedReservationIds, Map<String, String> roomIdToReservationId) {
+		System.out.println();
+		String inputId = readNonEmptyString(scanner, "Enter confirmed reservationId or room ID: ");
+		String reservationId = resolveReservationId(inputId, confirmedReservationIds, roomIdToReservationId);
+		if (reservationId == null) {
+			System.out.println("Reservation not found or not confirmed yet: " + inputId);
+			return;
+		}
+		serviceManager.displayServices(reservationId);
+	}
+
+	private static String resolveReservationId(String inputId, Set<String> confirmedReservationIds,
+			Map<String, String> roomIdToReservationId) {
+		if (confirmedReservationIds.contains(inputId)) {
+			return inputId;
+		}
+		return roomIdToReservationId.get(inputId);
+	}
+
+	private static Service readService(Scanner scanner) {
+		while (true) {
+			System.out.println("Select a service:");
+			System.out.println("1. Breakfast");
+			System.out.println("2. Airport Pickup");
+			System.out.println("3. Spa");
+			int choice = readInt(scanner, "Select an option: ");
+			switch (choice) {
+			case 1:
+				return new Service("Breakfast");
+			case 2:
+				return new Service("Airport Pickup");
+			case 3:
+				return new Service("Spa");
+			default:
+				System.out.println("Invalid option. Please try again.");
+			}
+		}
 	}
 
 	private static String readRoomType(Scanner scanner) {

@@ -1,1 +1,1 @@
-BookMyStay (Version 4.0) is a modular, console-based Java project where guest booking requests are confirmed from a FIFO queue, unique room IDs are allocated without duplicates, and room inventory counts are decreased as rooms are assigned.
+BookMyStay (Version 5.0) is a modular, console-based Java project where booking requests are confirmed from a FIFO queue with unique room IDs allocated and inventory updated, and guests can also attach add-on services (Breakfast, Airport Pickup, and Spa) to their confirmed reservations.
