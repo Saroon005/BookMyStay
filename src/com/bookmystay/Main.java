@@ -1,15 +1,17 @@
 /**
- * BookMyStay – Manager and Guest Console System
- * Guests can search available rooms and view pricing, while managers can manage inventory.
+ * BookMyStay – Booking Request Queue
+ * Booking requests are collected and processed in FIFO order.
  *
  * @author developer
- * @version 2.0
+ * @version 3.0
  */
 package com.bookmystay;
 
 import java.util.Scanner;
 
+import com.bookmystay.booking.BookingQueueService;
 import com.bookmystay.inventory.InventoryService;
+import com.bookmystay.model.Reservation;
 import com.bookmystay.search.SearchService;
 
 public class Main {
@@ -19,6 +21,7 @@ public class Main {
 		InventoryService inventoryService = new InventoryService();
 		inventoryService.initializeInventory(5, 1000, 3, 2000, 0, 3000);
 		SearchService searchService = new SearchService(inventoryService);
+		BookingQueueService bookingQueueService = new BookingQueueService();
 		Scanner scanner = new Scanner(System.in);
 
 		boolean appRunning = true;
@@ -34,7 +37,7 @@ public class Main {
 				}
 				break;
 			case 2:
-				runGuestMenu(scanner, searchService);
+				runGuestMenu(scanner, searchService, bookingQueueService);
 				appRunning = false;
 				break;
 			case 3:
@@ -67,7 +70,7 @@ public class Main {
 		return true;
 	}
 
-	private static void runGuestMenu(Scanner scanner, SearchService searchService) {
+	private static void runGuestMenu(Scanner scanner, SearchService searchService, BookingQueueService bookingQueueService) {
 		boolean running = true;
 		while (running) {
 			printGuestMenu();
@@ -81,6 +84,15 @@ public class Main {
 				handleSearchByRoomType(scanner, searchService);
 				break;
 			case 3:
+				handleAddBookingRequest(scanner, bookingQueueService);
+				break;
+			case 4:
+				bookingQueueService.displayQueue();
+				break;
+			case 5:
+				handleCheckout(bookingQueueService);
+				break;
+			case 6:
 				running = false;
 				System.out.println("Exiting BookMyStay. Goodbye!");
 				break;
@@ -92,10 +104,13 @@ public class Main {
 
 	private static void printGuestMenu() {
 		System.out.println();
-		System.out.println("=== BookMyStay - Guest Room Search ===");
+		System.out.println("=== BookMyStay - Guest Menu ===");
 		System.out.println("1. View all room types");
 		System.out.println("2. Search by room type");
-		System.out.println("3. Exit");
+		System.out.println("3. Submit booking request");
+		System.out.println("4. Display booking queue");
+		System.out.println("5. Checkout (process all requests FIFO)");
+		System.out.println("6. Exit");
 	}
 
 	private static void runManagerMenu(Scanner scanner, InventoryService inventoryService) {
@@ -182,6 +197,47 @@ public class Main {
 		searchService.displayRoom(roomType);
 	}
 
+	private static void handleAddBookingRequest(Scanner scanner, BookingQueueService bookingQueueService) {
+		System.out.println();
+		String guestName = readNonEmptyString(scanner, "Enter guest name: ");
+		String roomType = readRoomType(scanner);
+
+		Reservation reservation = bookingQueueService.acceptBookingRequest(guestName, roomType);
+		System.out.println("Booking request added to queue: " + reservation.getReservationId());
+		System.out.println("Current queue size: " + bookingQueueService.getQueueSize());
+	}
+
+	private static void handleCheckout(BookingQueueService bookingQueueService) {
+		System.out.println();
+		if (bookingQueueService.getQueueSize() == 0) {
+			System.out.println("No requests to checkout. Queue is empty.");
+			return;
+		}
+
+		System.out.println("Starting checkout... (FIFO order)");
+		while (true) {
+			Reservation next = bookingQueueService.processNextRequest();
+			if (next == null) {
+				break;
+			}
+
+			System.out.println("Checking out: " + next);
+			System.out.println("Remaining in queue: " + bookingQueueService.getQueueSize());
+
+			if (bookingQueueService.getQueueSize() > 0) {
+				try {
+					Thread.sleep(5000);
+				} catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+					System.out.println("Checkout interrupted.");
+					break;
+				}
+			}
+		}
+
+		System.out.println("Checkout complete.");
+	}
+
 	private static String readRoomType(Scanner scanner) {
 		while (true) {
 			System.out.print("Enter room type (Single/Double/Suite): ");
@@ -210,6 +266,17 @@ public class Main {
 			} catch (NumberFormatException ex) {
 				System.out.println("Please enter a valid integer.");
 			}
+		}
+	}
+
+	private static String readNonEmptyString(Scanner scanner, String prompt) {
+		while (true) {
+			System.out.print(prompt);
+			String line = scanner.nextLine().trim();
+			if (!line.isEmpty()) {
+				return line;
+			}
+			System.out.println("Value cannot be empty.");
 		}
 	}
 
