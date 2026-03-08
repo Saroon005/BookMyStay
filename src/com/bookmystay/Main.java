@@ -3,7 +3,7 @@
  * Booking requests are processed and unique room IDs are allocated.
  *
  * @author developer
- * @version 5.0
+ * @version 6.0
  */
 package com.bookmystay;
 
@@ -17,6 +17,7 @@ import com.bookmystay.booking.BookingQueueService;
 import com.bookmystay.booking.BookingService;
 import com.bookmystay.inventory.InventoryService;
 import com.bookmystay.model.Reservation;
+import com.bookmystay.reporting.ReportService;
 import com.bookmystay.search.SearchService;
 import com.bookmystay.service.Service;
 import com.bookmystay.service.ServiceManager;
@@ -31,6 +32,7 @@ public class Main {
 		BookingQueueService bookingQueueService = new BookingQueueService();
 		BookingService bookingService = new BookingService();
 		ServiceManager serviceManager = new ServiceManager();
+		ReportService reportService = new ReportService();
 		Set<String> confirmedReservationIds = new HashSet<>();
 		Map<String, String> reservationIdToRoomId = new HashMap<>();
 		Map<String, String> roomIdToReservationId = new HashMap<>();
@@ -44,14 +46,12 @@ public class Main {
 			switch (roleChoice) {
 			case 1:
 				if (authenticateManager(scanner)) {
-					runManagerMenu(scanner, inventoryService);
-					appRunning = false;
+					runManagerMenu(scanner, inventoryService, reportService);
 				}
 				break;
 			case 2:
 				runGuestMenu(scanner, searchService, bookingQueueService, bookingService, inventoryService, serviceManager,
-						confirmedReservationIds, reservationIdToRoomId, roomIdToReservationId);
-				appRunning = false;
+						confirmedReservationIds, reservationIdToRoomId, roomIdToReservationId, reportService);
 				break;
 			case 3:
 				appRunning = false;
@@ -86,7 +86,7 @@ public class Main {
 	private static void runGuestMenu(Scanner scanner, SearchService searchService, BookingQueueService bookingQueueService,
 			BookingService bookingService, InventoryService inventoryService, ServiceManager serviceManager,
 			Set<String> confirmedReservationIds, Map<String, String> reservationIdToRoomId,
-			Map<String, String> roomIdToReservationId) {
+			Map<String, String> roomIdToReservationId, ReportService reportService) {
 		boolean running = true;
 		while (running) {
 			printGuestMenu();
@@ -107,7 +107,7 @@ public class Main {
 				break;
 			case 5:
 				handleCheckout(bookingQueueService, bookingService, inventoryService, confirmedReservationIds,
-						reservationIdToRoomId, roomIdToReservationId);
+						reservationIdToRoomId, roomIdToReservationId, reportService);
 				break;
 			case 6:
 				handleAttachService(scanner, serviceManager, confirmedReservationIds, roomIdToReservationId);
@@ -117,7 +117,7 @@ public class Main {
 				break;
 			case 8:
 				running = false;
-				System.out.println("Exiting BookMyStay. Goodbye!");
+				System.out.println("Returning to role selection...");
 				break;
 			default:
 				System.out.println("Invalid option. Please try again.");
@@ -138,7 +138,7 @@ public class Main {
 		System.out.println("8. Exit");
 	}
 
-	private static void runManagerMenu(Scanner scanner, InventoryService inventoryService) {
+	private static void runManagerMenu(Scanner scanner, InventoryService inventoryService, ReportService reportService) {
 		boolean running = true;
 		while (running) {
 			printManagerMenu();
@@ -158,8 +158,11 @@ public class Main {
 				inventoryService.displayInventory();
 				break;
 			case 5:
+				runReportsMenu(scanner, reportService);
+				break;
+			case 6:
 				running = false;
-				System.out.println("Exiting BookMyStay. Goodbye!");
+				System.out.println("Returning to role selection...");
 				break;
 			default:
 				System.out.println("Invalid option. Please try again.");
@@ -174,7 +177,56 @@ public class Main {
 		System.out.println("2. Update room counts");
 		System.out.println("3. Update prices");
 		System.out.println("4. Display inventory");
-		System.out.println("5. Exit");
+		System.out.println("5. Reports");
+		System.out.println("6. Exit");
+	}
+
+	private static void runReportsMenu(Scanner scanner, ReportService reportService) {
+		boolean running = true;
+		while (running) {
+			printReportsMenu();
+			int choice = readInt(scanner, "Select an option: ");
+			switch (choice) {
+			case 1:
+				reportService.displayBookingHistory();
+				break;
+			case 2:
+				handleSearchBookings(scanner, reportService);
+				break;
+			case 3:
+				reportService.generateSimpleBookingReport();
+				break;
+			case 4:
+				running = false;
+				break;
+			default:
+				System.out.println("Invalid option. Please try again.");
+			}
+		}
+	}
+
+	private static void printReportsMenu() {
+		System.out.println();
+		System.out.println("=== Reports Menu ===");
+		System.out.println("1. Display booking history");
+		System.out.println("2. Search bookings by guest name");
+		System.out.println("3. Generate simple booking report");
+		System.out.println("4. Back");
+	}
+
+	private static void handleSearchBookings(Scanner scanner, ReportService reportService) {
+		System.out.println();
+		String guestName = readNonEmptyString(scanner, "Enter guest name to search: ");
+		java.util.List<Reservation> results = reportService.searchBookingsByGuestName(guestName);
+		System.out.println("Search results for: " + guestName);
+		if (results.isEmpty()) {
+			System.out.println("No bookings found.");
+			return;
+		}
+		System.out.println("ReservationId | GuestName | RoomType");
+		for (Reservation reservation : results) {
+			System.out.println(reservation);
+		}
 	}
 
 	private static void handleInitializeInventory(Scanner scanner, InventoryService inventoryService) {
@@ -234,7 +286,7 @@ public class Main {
 
 	private static void handleCheckout(BookingQueueService bookingQueueService, BookingService bookingService,
 			InventoryService inventoryService, Set<String> confirmedReservationIds, Map<String, String> reservationIdToRoomId,
-			Map<String, String> roomIdToReservationId) {
+			Map<String, String> roomIdToReservationId, ReportService reportService) {
 		System.out.println();
 		if (bookingQueueService.getQueueSize() == 0) {
 			System.out.println("No requests to checkout. Queue is empty.");
@@ -266,6 +318,7 @@ public class Main {
 			confirmedReservationIds.add(reservation.getReservationId());
 			reservationIdToRoomId.put(reservation.getReservationId(), roomId);
 			roomIdToReservationId.put(roomId, reservation.getReservationId());
+			reportService.storeConfirmedReservation(reservation);
 
 			System.out.println("Confirmed: " + reservation.getReservationId() + " -> Room ID: " + roomId);
 			System.out.println("Remaining in queue: " + bookingQueueService.getQueueSize());
